@@ -8,8 +8,8 @@
 namespace py = pybind11;
 
 std::vector<Stopwatch> run(const int reps = 1000) {
-    std::vector<Stopwatch> watches;
-    watches.reserve(reps);
+    std::vector<Stopwatch> probes;
+    probes.reserve(reps);
 
     const std::string msg = "ping";
 
@@ -28,13 +28,13 @@ std::vector<Stopwatch> run(const int reps = 1000) {
         read(fds[0], buf, sizeof(buf));
 
         sw.stop();
-        watches.push_back(sw);
+        probes.push_back(sw);
 
         close(fds[0]);
         close(fds[1]);
     }
 
-    return watches;
+    return probes;
 }
 
 PYBIND11_MODULE(PipelineMsg, m) {

@@ -7,4 +7,7 @@ add_executable(2025WEdition
         "02 Latency Tests/cpp/IncProbeset.cpp"
         "02 Latency Tests/cpp/TimeProbe.cpp"
         "02 Latency Tests/cpp/SystemCall.cpp"
-        "02 Latency Tests/cpp/ORWC.cpp")
+        "02 Latency Tests/cpp/ORWC.cpp"
+        "02 Latency Tests/cpp/SyncedStopwatch.cpp"
+        "02 Latency Tests/cpp/ActiveWait.cpp"
+        "02 Latency Tests/cpp/BlockedWait.cpp")

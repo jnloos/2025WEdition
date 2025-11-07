@@ -8,8 +8,8 @@
 namespace py = pybind11;
 
 std::vector<Stopwatch> run(const int reps = 1000) {
-    std::vector<Stopwatch> watches;
-    watches.reserve(reps);
+    std::vector<Stopwatch> probes;
+    probes.reserve(reps);
 
     const std::string filename = "tmp.txt";
     const std::string data = "This is a test line for ORWC measurement.\n";
@@ -31,11 +31,11 @@ std::vector<Stopwatch> run(const int reps = 1000) {
         }
 
         sw.stop();
-        watches.push_back(sw);
+        probes.push_back(sw);
     }
 
     std::remove(filename.c_str());
-    return watches;
+    return probes;
 }
 
 PYBIND11_MODULE(ORWC, m) {

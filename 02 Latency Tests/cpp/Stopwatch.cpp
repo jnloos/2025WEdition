@@ -2,7 +2,11 @@
 
 class Stopwatch {
 public:
-    Stopwatch() : accumulated_time_(Duration::zero()), running_(false) { }
+    Stopwatch()
+        : accumulated_time_(Duration::zero()), running_(false) { }
+
+    explicit Stopwatch(const long long nanoseconds)
+        : accumulated_time_(Duration(nanoseconds)), running_(false) { }
 
     void start() {
         if (!running_) {
@@ -22,18 +26,6 @@ public:
     void reset() {
         accumulated_time_ = Duration::zero();
         running_ = false;
-    }
-
-    double lap() {
-        if (!running_) {
-            return 0.0;
-        }
-        
-        TimePoint now = Clock::now();
-        Duration lap_duration = now - last_lap_time_;
-        last_lap_time_ = now;
-        
-        return std::chrono::duration<double>(lap_duration).count();
     }
 
     double elapsed_seconds() const {
