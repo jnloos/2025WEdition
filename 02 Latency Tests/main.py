@@ -1,11 +1,71 @@
 from pathlib import Path
-from pylib.LatencyResult import LatencyResult
 from pylib.LatencyTest import LatencyTest
+from pylib.LatencyResult import LatencyResult
 import json
 
 
+def results_dialog():
+    result_files = __search_results()
+    if not result_files:
+        print("\nNothing found.")
+        return
+
+    options = [f.name for f in result_files]
+    idx = __prompt_choice("\nSelect a result:", options)
+    print("")
+
+    result_file = result_files[idx]
+    result = LatencyResult.from_file(result_file)
+    print_json(result.dict())
+
+    show = input("\nDisplay diagram? (y/n) [y]: ").strip().lower()
+    if show != "n":
+        result.show()
+
+
+def test_dialog():
+    impls = __search_tests()
+    if not impls:
+        print("\nNothing found.")
+        return
+
+    impl_idx = __prompt_choice("\nSelect a test:", impls)
+    impl = impls[impl_idx]
+
+    title = __prompt_value("\nTitle", impl, str)
+    reps = __prompt_value("Repetitions", 1000, int)
+    conf = __prompt_value("Confidence level", 0.8, float)
+
+    units = ["s", "ms", "us", "ns"]
+    unit_idx = __prompt_choice("\nTime unit:", units)
+    unit = units[unit_idx]
+
+    cpp_path = Path(__file__).parent / "cpp" / impl
+    test = LatencyTest(str(cpp_path))
+    test.set_title(title)
+    test.set_conf(conf)
+    test.set_unit(unit)
+
+    print(f"\nRunning ...")
+    result = test.exec(reps=reps)
+    print("\n")
+    print_json(result.dict())
+
+    results_dir = Path(__file__).parent / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    default_name = f"{impl.lower()}.json"
+    filename = __prompt_value("\nStore as", default_name, str)
+    if not filename.endswith(".json"):
+        filename += ".json"
+
+    output_path = results_dir / filename
+    result.save(output_path)
+    print("Saved.")
+
+
 def __prompt_choice(prompt: str, options: list) -> int:
-    print(f"\n{prompt}")
+    print(f"{prompt}")
     for i, option in enumerate(options, 1):
         print(f"  {i}. {option}")
 
@@ -17,7 +77,8 @@ def __prompt_choice(prompt: str, options: list) -> int:
                 return idx
             print(f"Please enter a number between 1 and {len(options)}")
         except (ValueError, KeyboardInterrupt):
-            print("\nInvalid input. Please enter a number.")
+            print("Invalid input.")
+
 
 def __prompt_value(prompt: str, default, value_type=str):
     user_input = input(f"{prompt} [{default}]: ").strip()
@@ -30,121 +91,42 @@ def __prompt_value(prompt: str, default, value_type=str):
         return default
 
 
-def print_json(data: dict):
-    json_str = json.dumps(data, indent=2)
-    print(json_str)
-
-
-# Find all .cpp files except helper files
-def __scan_for_tests():
+def __search_tests():
     cpp_dir = Path(__file__).parent / "cpp"
     if not cpp_dir.exists():
         return []
-
     cpp_files = sorted([f.stem for f in cpp_dir.glob("*.cpp")])
-    cpp_files.remove("Stopwatch")
+    if "Stopwatch" in cpp_files:
+        cpp_files.remove("Stopwatch")
     return cpp_files
 
 
-def __scan_for_results():
-    """Scan results directory for available result files."""
+def __search_results():
     results_dir = Path(__file__).parent / "results"
     if not results_dir.exists():
         return []
-
-    result_files = sorted(results_dir.glob("*.json"))
-    return result_files
+    return sorted(results_dir.glob("*.json"))
 
 
-def load_results():
-    result_files = __scan_for_results()
-    if not result_files:
-        print("\nNo existing results found.")
-        return
-
-    # Display available results
-    options = [f.name for f in result_files]
-    idx = __prompt_choice("Select a result file to load:", options)
-
-    result_file = result_files[idx]
-    result = LatencyResult.from_file(result_file)
-    print(f"\nLoaded: {result_file.name}")
-    print("\n" + "=" * 60)
-    print_json(result.dict())
-    print("=" * 60)
-
-    show = input("\nDisplay interactive chart? (y/n) [y]: ").strip().lower()
-    if show != 'n':
-        result.show()
-
-
-def run_tests():
-    """Run a new latency test with user configuration."""
-    print("\n=== Configure New Test ===")
-
-    # Scan for available implementations
-    implementations = __scan_for_tests()
-
-    if not implementations:
-        print("\nNo C++ implementations found in cpp directory.")
-        return
-
-    # Select implementation
-    impl_idx = __prompt_choice("Select C++ implementation:", implementations)
-    impl = implementations[impl_idx]
-
-    # Configure test parameters
-    title = __prompt_value("Test title", impl, str)
-    reps = __prompt_value("Number of repetitions", 1000, int)
-    conf = __prompt_value("Confidence level", 0.8, float)
-    unit = __prompt_value("Time unit (s/ms/us/ns)", "us", str)
-
-    # Load and configure test
-    cpp_path = Path(__file__).parent / "cpp" / impl
-    test = LatencyTest(str(cpp_path))
-
-    test.set_title(title)
-    test.set_conf(conf)
-    test.set_unit(unit)
-
-    # Execute measurement
-    print(f"\nRunning test '{title}' with {reps} repetitions...")
-    summary = test.exec(reps=reps)
-
-    # Wrap in LatencyResult for visualization and persistence
-    result = LatencyResult(test.title, summary)
-    print("\n" + "=" * 60)
-    print_json(result.dict())
-    print("=" * 60)
-
-    # Show results
-    show = input("\nDisplay interactive chart? (y/n) [y]: ").strip().lower()
-    if show != 'n':
-        result.show()
-
-    # Save results
-    save = input("\nSave results? (y/n) [y]: ").strip().lower()
-    if save != 'n':
-        results_dir = Path(__file__).parent / "results"
-        results_dir.mkdir(parents=True, exist_ok=True)
-
-        default_name = f"{impl.lower()}.json"
-        filename = __prompt_value("Output filename", default_name, str)
-        if not filename.endswith('.json'):
-            filename += '.json'
-
-        output_path = results_dir / filename
-        result.save(output_path)
-        print(f"\nResults saved to: {output_path}")
+def print_json(data: dict):
+    print(json.dumps(data, indent=2))
 
 
 def main():
     print("Latency Test Suite")
-    mode_idx = __prompt_choice("What would you like to do?", ["Load existing results", "Run new test"])
-    if mode_idx == 0:
-        load_results()
-    else:
-        run_tests()
+    while True:
+        choice = __prompt_choice(
+            "\nSelect mode:",
+            ["Load results", "Execute test", "Exit"]
+        )
+
+        if choice == 0:
+            results_dialog()
+        elif choice == 1:
+            test_dialog()
+        elif choice == 2:
+            print("\nBye.")
+            break
 
 
 if __name__ == "__main__":

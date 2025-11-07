@@ -1,4 +1,5 @@
 from .Importer import Importer
+from .LatencyResult import LatencyResult
 from typing import Dict, Any, List
 import math
 import numpy as np
@@ -25,7 +26,7 @@ class LatencyTest:
             raise ValueError("Invalid unit.")
         self.unit = unit
 
-    def exec(self, reps: int) -> Dict[str, Any]:
+    def exec(self, reps: int) -> LatencyResult:
         imp = Importer()
         cpp = imp.cpp(self.cpp_file)
         probes = cpp.run(reps)
@@ -34,7 +35,7 @@ class LatencyTest:
 
         values = self.__convert(probes)
         summary = self.__eval(values)
-        return summary
+        return LatencyResult(self.title, summary)
 
     # Convert probes to desired unit
     def __convert(self, probes: List[Any]) -> np.ndarray:
