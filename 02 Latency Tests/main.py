@@ -2,6 +2,7 @@ from pathlib import Path
 from pylib.LatencyTest import LatencyTest
 from pylib.LatencyResult import LatencyResult
 import json
+from pylib.Importer import Importer
 
 
 def results_dialog():
@@ -33,8 +34,8 @@ def test_dialog():
     impl = impls[impl_idx]
 
     title = __prompt_value("\nTitle", impl, str)
-    reps = __prompt_value("Repetitions", 1000, int)
-    conf = __prompt_value("Confidence level", 0.8, float)
+    reps = __prompt_value("Repetitions", 10000, int)
+    conf = __prompt_value("Confidence level", 0.95, float)
 
     units = ["s", "ms", "us", "ns"]
     unit_idx = __prompt_choice("\nTime unit:", units)
@@ -113,6 +114,10 @@ def print_json(data: dict):
 
 
 def main():
+    # Import stopwatch module
+    imp = Importer()
+    imp.cpp('cpp/Stopwatch')
+
     print("Latency Test Suite")
     while True:
         choice = __prompt_choice(

@@ -38,11 +38,5 @@ std::vector<Stopwatch> run(const int reps = 1000) {
 }
 
 PYBIND11_MODULE(PipelineMsg, m) {
-    py::class_<Stopwatch>(m, "Stopwatch")
-        .def("elapsed_seconds", &Stopwatch::elapsed_seconds)
-        .def("elapsed_milliseconds", &Stopwatch::elapsed_milliseconds)
-        .def("elapsed_microseconds", &Stopwatch::elapsed_microseconds)
-        .def("elapsed_nanoseconds", &Stopwatch::elapsed_nanoseconds);
-
     m.def("run", &run, py::arg("reps") = 1000);
 }

@@ -1,4 +1,7 @@
 #include <chrono>
+#include <pybind11/pybind11.h>
+
+namespace py = pybind11;
 
 class Stopwatch {
 public:
@@ -68,3 +71,11 @@ private:
         return accumulated_time_;
     }
 };
+
+PYBIND11_MODULE(Stopwatch, m) {
+    py::class_<Stopwatch>(m, "Stopwatch")
+        .def("elapsed_seconds", &Stopwatch::elapsed_seconds)
+        .def("elapsed_milliseconds", &Stopwatch::elapsed_milliseconds)
+        .def("elapsed_microseconds", &Stopwatch::elapsed_microseconds)
+        .def("elapsed_nanoseconds", &Stopwatch::elapsed_nanoseconds);
+}

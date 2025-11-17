@@ -1,0 +1,13 @@
+{
+  "title": "Open Read Write Close",
+  "size": 10000,
+  "min": 16.959,
+  "max": 9581.458,
+  "mean": 33.6881151,
+  "median": 35.203,
+  "std_dev": 96.32624256720057,
+  "conf": 0.95,
+  "conf_low": 31.799926875998757,
+  "conf_high": 35.57630332400124,
+  "unit": "us"
+}
