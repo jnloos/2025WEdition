@@ -1,0 +1,165 @@
+\documentclass[a4paper, 12pt]{article}
+
+% Sprache
+\usepackage[ngerman]{babel}
+% \usepackage[english]{babel}
+
+% Pakete
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{tabularx}
+
+\setlength{\parindent}{0pt}
+\geometry{a4paper, margin=1in, headsep=35pt}
+
+% Referenzen
+\usepackage{csquotes}
+\usepackage[style=verbose-ibid,backend=bibtex]{biblatex}
+
+% Kopfzeile anpassen
+\pagestyle{fancy}
+\fancyhead{}
+\fancyhead[L]{\veranstaltung \\ Übungsblatt \blatt}
+\fancyhead[C]{\textbf{Jan-Niclas Loosen}\\ \textbf{Mat.Nr. UNKENNTLICH}}
+\fancyhead[R]{Universität Trier\\ \today}
+
+% Variablen für Anpassungen
+\newcommand{\blatt}{1} % Nummer des Übungsblatts
+\newcommand{\veranstaltung}{Betriebssysteme} % Name der Veranstaltung
+\bibliography{references.bib} % Name der BibTex-Datei
+
+\begin{document}
+	
+\section*{Technisches Vorgehen}
+Meine Umsetzung der Aufgabe besteht aus zwei zentralen Komponenten. Die eigentliche Ausführung der Zeitmessungen wurde in C++ implementiert. Die Skripte habe ich anschließend über die Open-Source-Bibliothek Pybind \autocite{pybind11} in Python eingebettet, um dort die Datenauswertung, die grafische Darstellung sowie das automatische Kompilieren der C++-Module zu realisieren. Ergänzend stellt der Python-Code einen Konsolendialog bereit, über den sämtliche Funktionalitäten bequem aufrufbar sind.\\
+
+Da die Zeitmessung der verschiedenen Funktionsbereiche stets nach demselben Ablauf erfolgt, habe ich mich für ein Entwurfsmuster entschieden, das dem \textit{Strategy Pattern} entspricht \autocite{strategy_pattern_refactoring_guru}. Alle C++-Module exponieren eine einheitliche \texttt{run}-Methode, in der die eigentlichen Messungen mithilfe einer leicht angepassten Variante der bereitgestellten \texttt{Stopwatch}-Klasse umgesetzt werden. Die Methoden liefern an Python eine Liste von Instanzen der Hilfsklasse zurück, wobei in Python ausschließlich die Konvertierungsfunktionen für die Zeiteinheiten Sekunden, Millisekunden, Mikrosekunden und Nanosekunden exponiert werden. Dadurch kann die \texttt{LatencyTest}-Klasse in Python sämtliche Skripte einheitlich verarbeiten, sodass weitere Tests hinzugefügt werden können, ohne dass Anpassungen im Python-Code erforderlich wären.\\
+
+Das die ausgegebene Liste einen hohen Speicherbedarf verursacht ist mir bewusst. Die Aufgabenstellung fordert jedoch die Berechnung des Medians. Während inkrementelle Verfahren statistische Größen wie den Mittelwert exakt bestimmen können \autocite{demofox2016incremental}, lässt sich der Median ohne Speicherung der vollständigen Stichprobe nur approximieren. Da somit ohnehin eine recht großte Historie aller Messwerte vorgehalten werden muss, habe ich mich für die speicherintensivere, aber in diesem Anwendungsfall gut vertretbare Lösung entschieden. Zusätzlich stellen die Bibliotheken Numpy\autocite{numpy} und Scipy\autocite{scipy} weitere Funktionen zur Verfügung, welche die Auswertung der Datensätze weiter vereinfachen. 
+
+\section*{Aktives vs. blockierendes Warten}
+
+\subsection*{Hypothese}
+
+\textit{Aktives Warten} (Busy Waiting) bedeutet, dass ein Thread in einer Schleife kontinuierlich prüft, ob ein Lock verfügbar ist. Dabei verbraucht der prüfende Thread permanent CPU-Zeit, was besonders bei scheduler-bedingten Verzögerungen zu hohen und stark schwankenden Latenzen führen kann \autocites{wikipedia_busywaiting}. \textit{Blockierendes Warten} über Semaphore suspendiert den wartenden Thread dahingegen und vermerkt ihn in der zugehörigen Warteschlange des Semaphors\autocites{umass_kernel_sync}. Der Scheduler betrachtet diesen Thread dadurch als nicht ausführbar, bis das Semaphor ein Signal erhält. Somit werden keine CPU-Ressourcen verbraucht, und es entstehen typischerweise sehr geringe Wake-Up-Latenzen. Aus diesen Begebenheiten ergibt sich folgende Hypothese:
+
+\begin{enumerate}
+  \item Aktives Warten erzeugt hohe, schedulerabhängige Latenzen mit großer Varianz.
+  \item Blockierendes Warten erzeugt stabile und bemerkbar niedrigere Latenzen.
+\end{enumerate}
+
+\subsection*{Implementierung}
+
+Beide Messverfahren verwenden eine ähnliche Vorgehensweise: Jede Iteration initialisiert zwei Threads: einen wartenden und einen freigebenden. Beide Threads teilen sich eine gemeinsame \texttt{Stopwatch}-Instanz, wobei der Hauptthread die Messung unmittelbar vor der Freigabe des jeweiligen Synchronisationsobjekts startet und der Wartethread sie stoppt, sobald er die Freigabe erkennt. Dadurch wird ausschließlich die Latenz zwischen Freigabe und tatsächlichem Weiterlaufen des wartenden Threads gemessen. Die Synchronisationsprimitive (Spinlock bzw. Semaphore) werden für jeden Messdurchlauf neu angelegt und nach Abschluss der Messung wieder freigegeben.\\
+
+Beim aktiven Warten wird zu Beginn jeder Iteration ein neuer Lock erzeugt und sofort in den gesperrten Zustand versetzt. Ein Wartethread prüft anschließend in einer Spin-Schleife, ob der Lock freigegeben wurde. Der Hauptthread startet die Zeitmessung unmittelbar vor der Freigabe. Sobald der Wartethread die Freigabe beobachtet und die Schleife verlassen hat, stoppt er die Uhr.\\
+
+Beim blockierenden Warten wird jeweils eine neue Semaphore mit Startwert 0 initialisiert. Der Wartethread ruft sofort \texttt{sem\_wait()} auf und blockiert im Kernel. Der Hauptthread startet die Messung direkt vor \texttt{sem\_post()}, das den Wartethread weckt. Nach dem Aufwachen beendet der Wartethread die Messung.\\
+
+\subsection*{Ergebnisse \& Schlussfolgerung}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l >{\raggedleft\arraybackslash}X >{\raggedleft\arraybackslash}X}
+\toprule
+\textbf{Kennzahl} & \textbf{Aktives Warten} & \textbf{Blockierendes Warten} \\
+\midrule
+Mittelwert     & 372{,}77\,ms              & 5{,}06\,\,$\mu$s \\
+Median         & 373{,}95\,ms              & 3{,}69\,\,$\mu$s \\
+Minimum        & 0{,}421\,$\mu$s            & 1{,}003\,\,$\mu$s \\
+Maximum        & 752{,}108\,ms             & 390{,}859\,\,$\mu$s \\
+Std.-Abw.      & 213{,}68\,ms              & 10{,}41\,\,$\mu$s \\
+95\%-CI        & [368{,}58; 376{,}96]\,ms  & [4{,}85; 5{,}26]\,\,$\mu$s \\
+\bottomrule
+\end{tabularx}
+\caption{Vergleich der beiden Warteverfahren (jeweils 10\,000 Messungen).}
+\label{tab:waitresults}
+\end{table}
+
+Beim aktiven Warten liegt der Mittelwert mit 372,77 ms im Millisekundenbereich und damit signifikant höher als beim blockierenden Verfahren. Der Median (373 ms) ist nahezu identisch. Die extremen Werte -- von wenigen Nanosekunden bis zu über 750 ms -- und die sehr hohe Standardabweichung (213,68 ms) zeigen eine massive Streuung. Auch das 95\%-Konfidenzintervall von 368--377 ms belegt, dass die Messwerte stark schwanken und dadurch signifikant vom Scheduling abhängig sind.\\
+
+Beim blockierenden Warten befinden sich Mittelwert (5,06 $\mu$s) und Median (3,69 $\mu$s) im niedrigen Mikrosekundenbereich. Minimum (1,003 $\mu$s) und Maximum (390,859 $\mu$s) zeigen zwar einzelne Ausreißer, die Standardabweichung von 10 $\mu$s ist aber erheblich kleiner als beim aktiven Warten. Auch das enge 95\%-Konfidenzintervall von 4,85--5,26 $\mu$s bestätigt die hohe Stabilität im Vergleich zur alternativen Methodik.\\
+
+Zusammenfassend entsprechen die Messwerte der Hypothese: Aktives Warten führt zu hohen und stark schwankenden Latenzen, während das blockierende Warten kurze, konsistente Reaktionszeiten liefert. Für die Praxis bedeutet dies, dass blockierende Synchronisationsmechanismen gegenüber aktivem Warten klar zu bevorzugen sind. Entwickler sollten Spinlocks nur dann einsetzen, wenn schedulerbedingte Verzögerungen ausgeschlossen werden können. In allen anderen Fällen führen Semaphore oder vergleichbare Primitive zu vorhersehbarem Verhalten, geringerer CPU-Last und besserer Skalierbarkeit unter Last.
+
+
+\begin{figure}[h]
+\centering
+
+\begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{media/activewait.png}
+    \caption{Aktives Warten}
+    \label{fig:activewait}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{media/blockedwait.png}
+    \caption{Blockierendes Warten}
+    \label{fig:blockedwait}
+\end{subfigure}
+
+\caption{Vergleich der Latenzverteilungen beider Warteverfahren.}
+\label{fig:waitplots}
+\end{figure}
+
+\section*{Andere Messungen}
+
+\subsection*{ORWC und Pipelines}
+
+ORWC steht für \textit{Open–Read–Write–Close} und bezeichnet die Abfolge grundlegender Dateisystemoperationen: Eine Datei wird geöffnet, ein kleiner Inhalt gelesen, etwas geschrieben und anschließend wieder geschlossen. Der Ablauf bildet typische I/O-Zugriffe ab und umfasst damit sowohl Kernel- als auch Dateisysteminteraktionen. Eine \textit{Pipeline} ist ein leichtgewichtiges Kommunikationsmittel zwischen zwei Prozessen oder Threads\autocite{ahmed_ipc_pipes_signals_2024}. Sie besteht aus einem verbundenen Lese- und Schreibende und ermöglicht das Übergeben kleiner Datenmengen direkt im Speicher, ohne dass das Dateisystem beteiligt ist. Dadurch eignet sie sich besonders für schnelle und einfache Interprozesskommunikation.\\
+
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l >{\raggedleft\arraybackslash}X >{\raggedleft\arraybackslash}X}
+\toprule
+\textbf{Kennzahl} & \textbf{ORWC} & \textbf{Pipeline} \\
+\midrule
+Mittelwert   & 33{,}69\,\,$\mu$s & 0{,}437\,\,$\mu$s \\
+Median       & 35{,}20\,\,$\mu$s & 0{,}35\,\,$\mu$s \\
+Minimum      & 16{,}96\,\,$\mu$s & 0{,}326\,\,$\mu$s \\
+Maximum      & 9581{,}46\,\,$\mu$s & 14{,}945\,\,$\mu$s \\
+Std.-Abw.    & 96{,}33\,\,$\mu$s & 0{,}258\,\,$\mu$s \\
+95\%-CI      & [31{,}80; 35{,}58]\,\,$\mu$s & [0{,}432; 0{,}442]\,\,$\mu$s \\
+\bottomrule
+\end{tabularx}
+\caption{Vergleich von ORWC und Pipelines (jeweils 10\,000 Messungen).}
+\label{tab:orwc-pipe}
+\end{table}
+
+Die ORWC-Operation zeigt Latenzen im zweistelligen Mikrosekundenbereich und weist eine deutlich sichtbare Streuung auf. Besonders die vereinzelten Ausreißer im Millisekundenbereich verdeutlichen, dass Dateisysteminteraktionen stark von Kernel- und I/O-Zuständen abhängig sind und daher nur eingeschränkt deterministisches Verhalten bieten. Für Anwendungen, die viele kleine Dateien öffnen, lesen oder schreiben müssen, kann sich dieses Verhalten spürbar auf die Gesamtlaufzeit auswirken.\\
+
+Die Pipeline-Kommunikation arbeitet dagegen durchgängig im Submikrosekundenbereich und zeigt nahezu keinerlei Varianz. Die enge Verteilung deutet weiter auf eine sehr stabile Ausführung hin, da die Operation vollständig im Speicher stattfindet und keine Interaktion mit dem Dateisystem erfordert. Für latenzkritische IPC-Szenarien ist dieser Mechanismus daher deutlich besser geeignet und ermöglicht eine verlässliche Planung von Kommunikationsmustern zwischen Prozessen oder Threads.
+
+\begin{figure}[h]
+\centering
+
+\begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{media/orwc.png}
+    \caption{ORWC}
+    \label{fig:orwc}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{media/pipelinemsg.png}
+    \caption{Pipeline}
+    \label{fig:pipeline}
+\end{subfigure}
+
+\caption{Vergleich der Latenzverteilungen beider Verfahren.}
+\label{fig:orwc-pipeline}
+\end{figure}
+
+\end{document}

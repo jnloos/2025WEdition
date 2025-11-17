@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import json
 
+import matplotlib
+matplotlib.use("TkAgg")
 
 class LatencyResult:
     def __init__(self, title: str, summary: Dict[str, Any]):
