@@ -1,0 +1,20 @@
+services:
+  hr:
+    build: .
+    image: santa-node
+    command: ["python", "node.py", "hr"]
+
+  santa:
+    image: santa-node
+    command: ["python", "node.py", "santa"]
+    depends_on: [hr]
+
+  elf:
+    image: santa-node
+    command: ["python", "node.py", "elf"]
+    depends_on: [hr]
+
+  reindeer:
+    image: santa-node
+    command: ["python", "node.py", "reindeer"]
+    depends_on: [hr]

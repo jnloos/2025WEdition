@@ -47,7 +47,7 @@ class Elf(Process, CanPrint):
             # Santa is required to help, wait for him
             self.hr.glob_mutex.acquire()
             self.hr.elves_needing_help.value += 1
-            if self.hr.elves_needing_help.value >= self.hr.problem_tolerance:
+            if self.hr.elves_needing_help.value == self.hr.problem_tolerance:
                 self.hr.santa_sem.release()
             self.hr.glob_mutex.release()
 
