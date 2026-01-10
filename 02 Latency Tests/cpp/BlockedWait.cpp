@@ -10,6 +10,8 @@ namespace py = pybind11;
 
 // Measure time between semaphore release and acquisition using Stopwatch
 std::vector<Stopwatch> run(const int reps = 1000) {
+    pybind11::gil_scoped_release release;
+
     std::vector<Stopwatch> probes;
     probes.reserve(reps);
 
