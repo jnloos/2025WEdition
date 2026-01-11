@@ -1,10 +1,10 @@
 import zmq
 import random
 import time
-from .CanPrint import CanPrint
+from .CanPrintZMQ import CanPrintZMQ
 from .config import *
 
-class Elf(CanPrint):
+class Elf(CanPrintZMQ):
     elf_id: int
 
     # Outgoing concerns
@@ -20,7 +20,6 @@ class Elf(CanPrint):
     sub_hr: zmq.Socket
 
     def __init__(self):
-        super().__init__(timestamp=True)
         ctx = zmq.Context()
 
         # Apply to the HR department
@@ -38,6 +37,8 @@ class Elf(CanPrint):
         self.sub_hr = ctx.socket(zmq.SUB)
         self.sub_hr.connect(f"tcp://hr:{PORT_BCAST_ELVES}")
         self.sub_hr.setsockopt_string(zmq.SUBSCRIBE, "")
+
+        super().__init__(log_host="hr", prefix=f"Elf {self.elf_id}: ", timestamp=True)
 
     def run(self):
         while True:

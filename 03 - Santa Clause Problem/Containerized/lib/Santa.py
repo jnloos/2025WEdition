@@ -1,8 +1,8 @@
 import zmq
-from .CanPrint import CanPrint
+from .CanPrintZMQ import CanPrintZMQ
 from .config import *
 
-class Santa(CanPrint):
+class Santa(CanPrintZMQ):
     # Incoming instructions
     IN_PREPARE_SLEIGH = "SANTA_PREPARE_SLEIGH"
     IN_HELP_ELVES = "SANTA_HELP_ELVES"
@@ -18,11 +18,12 @@ class Santa(CanPrint):
     con_hr: zmq.Socket
 
     def __init__(self):
-        super().__init__(timestamp=True)
         ctx = zmq.Context()
 
         self.con_hr = ctx.socket(zmq.REP)
         self.con_hr.bind(f"tcp://*:{PORT_SANTA}")
+
+        super().__init__(log_host="hr", prefix="Santa: ", timestamp=True)
 
     def run(self):
         # Usually all messages are a hit because no other messages are sent on this channel
@@ -41,11 +42,14 @@ class Santa(CanPrint):
 
                 elves_needing_help = False
                 while True:
+                    msg = self.con_hr.recv_json()
+                    cmd = msg["cmd"]
+
                     if cmd == Santa.IN_SHIP_PRESENTS:
                         self.print("Christmas is here!")
                         self.con_hr.send_json({"type": Santa.OUT_BACK_TO_HOLIDAYS})
                         break
-                    elif cmd == Santa.IN_HELP_ELVES:
+                    else:
                         elves_needing_help = True
                         self.con_hr.send_json({"type": Santa.OUT_WAIT_FOR_PREPARED_REINDEERS})
                         break

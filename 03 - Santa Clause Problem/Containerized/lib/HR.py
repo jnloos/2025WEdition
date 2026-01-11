@@ -1,5 +1,5 @@
 import zmq
-from .CanPrint import CanPrint
+from .CanPrintZMQ import CanPrintZMQ
 from .Elf import Elf
 from .Santa import Santa
 from .Reindeer import Reindeer
@@ -9,7 +9,7 @@ from .config import *
 # Manages all employees and the reindeers
 # Also manages ICP communication logics
 
-class HR(CanPrint):
+class HR(CanPrintZMQ):
     # Allowed number of employees
     elf_count: int
     reindeer_count: int
@@ -28,10 +28,7 @@ class HR(CanPrint):
     con_santa: zmq.Socket
     con_application: zmq.Socket
 
-
     def __init__(self, elf_count=3, reindeer_count=9):
-        super().__init__(timestamp=True)
-
         self.elf_count = elf_count
         self.reindeer_count = reindeer_count
 
@@ -52,6 +49,8 @@ class HR(CanPrint):
         self.con_santa.connect(f"tcp://santa:{PORT_SANTA}")
         self.con_application = ctx.socket(zmq.REP)
         self.con_application.bind(f"tcp://*:{PORT_APPLICATION}")
+
+        super().__init__(prefix="HR: ", timestamp=True)
 
     def run(self):
         self.print("The factories have been built. It's time to hire employees.")

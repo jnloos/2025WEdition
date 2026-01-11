@@ -2,10 +2,10 @@ import random
 
 import zmq
 import time
-from .CanPrint import CanPrint
+from .CanPrintZMQ import CanPrintZMQ
 from .config import *
 
-class Reindeer(CanPrint):
+class Reindeer(CanPrintZMQ):
     reindeer_id: int
 
     # Outgoing concerns
@@ -23,7 +23,6 @@ class Reindeer(CanPrint):
     reindeer_bcast: zmq.Socket
 
     def __init__(self):
-        super().__init__(timestamp=True)
         ctx = zmq.Context()
 
         # Apply to the HR department
@@ -41,6 +40,8 @@ class Reindeer(CanPrint):
         self.reindeer_bcast = ctx.socket(zmq.SUB)
         self.reindeer_bcast.connect(f"tcp://hr:{PORT_BCAST_REINDEERS}")
         self.reindeer_bcast.setsockopt_string(zmq.SUBSCRIBE, "")
+
+        super().__init__(log_host="hr", prefix=f"Reindeer {self.reindeer_id}: ", timestamp=True)
 
     def run(self):
         while True:
