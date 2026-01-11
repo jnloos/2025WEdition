@@ -1,41 +1,70 @@
+import random
+
 import zmq
 import time
 from .CanPrint import CanPrint
-
+from .config import *
 
 class Reindeer(CanPrint):
+    reindeer_id: int
+
+    # Outgoing concerns
+    OUT_APPLICATION = "REINDEER_APPLICATION"
+    OUT_RETURNED = "REINDEER_RETURNED"
+    OUT_IS_PREPARED = "REINDEER_PREPARED"
+
+    # Incoming instructions
+    IN_HITCH = "REINDEER_HITCH"
+    IN_HOLIDAY_APPROVED = "REINDEER_HOLIDAY_APPROVED"
+
+    # ZMQ sockets
+    con_application: zmq.Socket
+    worker_concerns: zmq.Socket
+    reindeer_bcast: zmq.Socket
+
     def __init__(self):
+        super().__init__(timestamp=True)
         ctx = zmq.Context()
 
-        # Registration socket
-        self.reg = ctx.socket(zmq.REQ)
-        self.reg.connect("tcp://hr:5558")
-        self.reg.send_json({"type": "APPLY_REINDEER"})
-        reply = self.reg.recv_json()
+        # Apply to the HR department
+        self.con_application = ctx.socket(zmq.REQ)
+        self.con_application.connect(f"tcp://hr:{PORT_APPLICATION}")
+        self.con_application.send_json({"type": Reindeer.OUT_APPLICATION})
+        reply = self.con_application.recv_json()
+        self.reindeer_id = reply["id"]
 
-        self.rid = reply["id"]
-        super().__init__(f"[Reindeer {self.rid}] ")
+        # Socket for employee concerns
+        self.worker_concerns = ctx.socket(zmq.PUSH)
+        self.worker_concerns.connect(f"tcp://hr:{PORT_WORKER_EVENTS}")
 
-        # Event socket
-        self.push = ctx.socket(zmq.PUSH)
-        self.push.connect("tcp://hr:5555")
-
-        # Command socket
-        self.sub = ctx.socket(zmq.SUB)
-        self.sub.connect("tcp://hr:5556")
-        self.sub.setsockopt_string(zmq.SUBSCRIBE, "")
+        # Broadcast socket from the HR department
+        self.reindeer_bcast = ctx.socket(zmq.SUB)
+        self.reindeer_bcast.connect(f"tcp://hr:{PORT_BCAST_REINDEERS}")
+        self.reindeer_bcast.setsockopt_string(zmq.SUBSCRIBE, "")
 
     def run(self):
         while True:
-            self.log("On holiday")
-            time.sleep(10)
+            # Holiday phase
+            cocktails = ["Mojito", "Pina Colada", "Caipirinha", "Sex on the Beach", "Tequila Sunrise", "Whiskey Sour"]
+            countries = ["Fiji", "Samoa", "Tonga", "Vanuatu", "Kiribati", "Tuvalu", "Nauru"]
+            self.print(f"Drinks {random.choice(cocktails)} on {random.choice(countries)}.")
+            time.sleep(TIME_UNTIL_CHRISTMAS)
 
-            self.log("Returned")
-            self.push.send_json({"type": "REINDEER_RETURNED"})
+            # Return from holiday
+            self.print("Returned from holiday.")
+            self.worker_concerns.send_json({"type": Reindeer.OUT_RETURNED, "id": self.reindeer_id})
 
+            # Usually all messages are a hit because no other messages are sent on this broadcast channel
             while True:
-                msg = self.sub.recv_json()
-                if msg["cmd"] == "HITCH":
-                    self.log("Getting hitched")
-                    self.push.send_json({"type": "REINDEER_PREPARED"})
+                # GIL sends this thread to sleep until a message is received
+                msg = self.reindeer_bcast.recv_json()
+                cmd = msg["cmd"]
+
+                if cmd == Reindeer.IN_HITCH:
+                    self.print("Getting hitched to the sleigh.")
+                    self.worker_concerns.send_json({"type": Reindeer.OUT_IS_PREPARED, "id": self.reindeer_id})
+                    break
+
+                elif cmd == Reindeer.IN_HOLIDAY_APPROVED:
+                    self.print("Collects his wages and seeks out his dream holiday.")
                     break

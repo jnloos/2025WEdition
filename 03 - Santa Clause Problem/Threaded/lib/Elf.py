@@ -41,7 +41,7 @@ class Elf(Process, CanPrint):
             # Build a toy, normally Santa is not required to help
             self.build_toys()
             time.sleep(random.randint(self.min_prod_time, self.max_prod_time))
-            if (random.randint(0, 100) / 100) >= self.help_prob:
+            if random.random() >= self.help_prob:
                 continue
 
             # Santa is required to help, wait for him

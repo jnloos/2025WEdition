@@ -1,127 +1,141 @@
 import zmq
 from .CanPrint import CanPrint
+from .Elf import Elf
+from .Santa import Santa
+from .Reindeer import Reindeer
+from .config import *
+
+# Human Resources office of the North Pole
+# Manages all employees and the reindeers
+# Also manages ICP communication logics
 
 class HR(CanPrint):
-    def __init__(self, elf_threshold: int = 3, reindeer_count: int = 9):
-        super().__init__("[HR] ")
+    # Allowed number of employees
+    elf_count: int
+    reindeer_count: int
 
-        self.elf_threshold = elf_threshold
+    # Counters for sync logics
+    elves_needing_help: int = 0
+    returned_reindeers: int = 0
+    prepared_reindeers: int = 0
+    next_elf_id: int = 1
+    next_reindeer_id: int = 1
+
+    # ZMQ Sockets
+    worker_concerns: zmq.Socket
+    bcast_elves: zmq.Socket
+    bcast_reindeers: zmq.Socket
+    con_santa: zmq.Socket
+    con_application: zmq.Socket
+
+
+    def __init__(self, elf_count=3, reindeer_count=9):
+        super().__init__(timestamp=True)
+
+        self.elf_count = elf_count
         self.reindeer_count = reindeer_count
-
-        # State
-        self.elves_waiting = 0
-        self.reindeer_returned = 0
-        self.reindeer_prepared = 0
-
-        self.next_elf_id = 1
-        self.next_reindeer_id = 1
 
         ctx = zmq.Context()
 
-        # Workers → HR (events)
-        self.pull = ctx.socket(zmq.PULL)
-        self.pull.bind("tcp://*:5555")
+        # Incoming connection sockets
+        self.worker_concerns = ctx.socket(zmq.PULL)
+        self.worker_concerns.bind(f"tcp://*:{PORT_WORKER_EVENTS}")
 
-        # HR → Workers (commands)
-        self.pub = ctx.socket(zmq.PUB)
-        self.pub.bind("tcp://*:5556")
+        # Broadcast sockets
+        self.bcast_elves = ctx.socket(zmq.PUB)
+        self.bcast_elves.bind(f"tcp://*:{PORT_BCAST_ELVES}")
+        self.bcast_reindeers = ctx.socket(zmq.PUB)
+        self.bcast_reindeers.bind(f"tcp://*:{PORT_BCAST_REINDEERS}")
 
-        # Santa ↔ HR (coordination)
-        self.rep = ctx.socket(zmq.REP)
-        self.rep.bind("tcp://*:5557")
-
-        # Registration (apply for ID)
-        self.reg = ctx.socket(zmq.REP)
-        self.reg.bind("tcp://*:5558")
+        # Two-way connection sockets
+        self.con_santa = ctx.socket(zmq.REQ)
+        self.con_santa.connect(f"tcp://santa:{PORT_SANTA}")
+        self.con_application = ctx.socket(zmq.REP)
+        self.con_application.bind(f"tcp://*:{PORT_APPLICATION}")
 
     def run(self):
-        self.log("HR online")
+        self.print("The factories have been built. It's time to hire employees.")
 
         poller = zmq.Poller()
-        poller.register(self.pull, zmq.POLLIN)
-        poller.register(self.rep, zmq.POLLIN)
-        poller.register(self.reg, zmq.POLLIN)
+        poller.register(self.worker_concerns, zmq.POLLIN)
+        poller.register(self.con_santa, zmq.POLLIN)
+        poller.register(self.con_application, zmq.POLLIN)
 
+        # All incoming connections are handled in a single thread
         while True:
+            # Block the main thread until a message is received
             events = dict(poller.poll())
 
-            if self.pull in events:
-                msg = self.pull.recv_json()
-                self.handle_worker_event(msg)
+            if self.con_application in events:
+                self.handle_application()
 
-            if self.rep in events:
-                msg = self.rep.recv_json()
-                self.handle_santa_request(msg)
+            if self.worker_concerns in events:
+                self.handle_workers()
 
-            if self.reg in events:
-                msg = self.reg.recv_json()
-                self.handle_registration(msg)
+            if self.con_santa in events:
+                self.handle_santa()
 
-    # ---------- handlers ----------
+    # Handles application requests
+    def handle_application(self):
+        msg = self.con_application.recv_json()
+        application_type = msg["type"]
 
-    def handle_registration(self, msg: dict):
-        t = msg.get("type")
-
-        if t == "APPLY_ELF":
-            eid = self.next_elf_id
+        if application_type == Elf.APPLICATION:
+            reindeer_id = self.next_elf_id
             self.next_elf_id += 1
-            self.log(f"Registered Elf {eid}")
-            self.reg.send_json({"id": eid})
+            self.print(f"Elf {reindeer_id} is hired.")
+            self.con_application.send_json({"id": reindeer_id})
 
-        elif t == "APPLY_REINDEER":
-            rid = self.next_reindeer_id
+        elif application_type == Reindeer.OUT_APPLICATION:
+            elf_id = self.next_reindeer_id
             self.next_reindeer_id += 1
-            self.log(f"Registered Reindeer {rid}")
-            self.reg.send_json({"id": rid})
+            self.print(f"Reindeer {elf_id} is hired.")
+            self.con_application.send_json({"id": elf_id})
 
-        else:
-            self.reg.send_json({"error": "unknown registration type"})
+    # Manages the concerns of the workers and gives orders to Santa
+    def handle_workers(self):
+        msg = self.worker_concerns.recv_json()
+        concern = msg["type"]
+        employee_id = msg["id"]
 
-    def handle_worker_event(self, msg: dict):
-        t = msg.get("type")
+        # Prioritize Christmas preparations if all reindeers have returned
+        if concern == Reindeer.OUT_RETURNED:
+            self.returned_reindeers += 1
+            self.print(f"Reindeer {employee_id} has reported back for duty.")
+            if self.returned_reindeers == self.reindeer_count:
+                self.con_santa.send_json({"cmd": Santa.IN_PREPARE_SLEIGH})
 
-        if t == "ELF_NEEDS_HELP":
-            self.elves_waiting += 1
-            self.log(f"Elf needs help ({self.elves_waiting})")
+        elif concern == Reindeer.OUT_IS_PREPARED:
+            self.prepared_reindeers += 1
+            if self.prepared_reindeers == self.reindeer_count:
+                self.print("All departments are ready for Christmas.")
+                self.con_santa.send_json({"cmd": Santa.IN_SHIP_PRESENTS})
 
-            if self.elves_waiting == self.elf_threshold:
-                self.pub.send_json({"cmd": "WAKE_SANTA_ELVES"})
+        elif concern == Elf.NEEDS_HELP:
+            self.elves_needing_help += 1
+            self.print(f"Assistance request has been received by {employee_id}.")
+            if self.elves_needing_help == PROBLEM_TOLERANCE:
+                self.con_santa.send_json({"cmd": Santa.IN_HELP_ELVES})
 
-        elif t == "REINDEER_RETURNED":
-            self.reindeer_returned += 1
-            self.log(f"Reindeer returned ({self.reindeer_returned})")
+    # Manages the concerns of Santa and gives orders to the workers
+    def handle_santa(self):
+        msg = self.con_santa.recv_json()
+        concern = msg["type"]
 
-            if self.reindeer_returned == self.reindeer_count:
-                self.pub.send_json({"cmd": "WAKE_SANTA_REINDEER"})
+        if concern == Santa.OUT_OFFICE_OPENED:
+            self.print("Santa holds office hours for the elves.")
+            self.bcast_elves.send_json({"cmd": Elf.HELP_GRANTED})
+            self.elves_needing_help = 0
 
-        elif t == "REINDEER_PREPARED":
-            self.reindeer_prepared += 1
+        elif concern == Santa.OUT_HITCHES_REINDEERS:
+            self.print("Christmas is coming soon. Arrange overtime work.")
+            self.bcast_reindeers.send_json({"cmd": Reindeer.IN_HITCH})
 
-            if self.reindeer_prepared == self.reindeer_count:
-                self.pub.send_json({"cmd": "CHRISTMAS"})
-                # reset cycle
-                self.reindeer_prepared = 0
-                self.reindeer_returned = 0
+        elif concern == Santa.OUT_BACK_TO_HOLIDAYS:
+            self.print("Christmas is done. Send non-essential staff on holiday.")
+            self.returned_reindeers = 0
+            self.prepared_reindeers = 0
+            self.bcast_reindeers.send_json({"cmd": Reindeer.IN_HOLIDAY_APPROVED})
 
-    def handle_santa_request(self, msg: dict):
-        t = msg.get("type")
-
-        if t == "HELP_ELVES":
-            self.log("Santa helps elves")
-
-            for _ in range(self.elves_waiting):
-                self.pub.send_json({"cmd": "ELF_HELP_GRANTED"})
-
-            self.elves_waiting = 0
-            self.rep.send_json({"ok": True})
-
-        elif t == "PREPARE_SLEIGH":
-            self.log("Santa prepares sleigh")
-
-            for _ in range(self.reindeer_count):
-                self.pub.send_json({"cmd": "HITCH"})
-
-            self.rep.send_json({"ok": True})
-
-        else:
-            self.rep.send_json({"error": "unknown santa request"})
+        elif concern == Santa.OUT_WAIT_FOR_PREPARED_REINDEERS:
+            self.print("Help request must wait because Santa waits for his reindeers.")

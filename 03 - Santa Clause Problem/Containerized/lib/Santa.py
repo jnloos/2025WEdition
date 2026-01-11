@@ -1,32 +1,55 @@
 import zmq
 from .CanPrint import CanPrint
+from .config import *
 
 class Santa(CanPrint):
+    # Incoming instructions
+    IN_PREPARE_SLEIGH = "SANTA_PREPARE_SLEIGH"
+    IN_HELP_ELVES = "SANTA_HELP_ELVES"
+    IN_SHIP_PRESENTS = "SANTA_SHIP_PRESENTS"
+    
+    # Outgoing concerns
+    OUT_OFFICE_OPENED = "SANTA_OFFICE_HOURS"
+    OUT_HITCHES_REINDEERS = "SANTA_HITCHES_REINDEER"
+    OUT_BACK_TO_HOLIDAYS = "SANTA_CHRISTMAS_EVE"
+    OUT_WAIT_FOR_PREPARED_REINDEERS = "SANTA_WAIT_FOR_PREPARED_REINDEERS"
+
+    # ZMQ socket
+    con_hr: zmq.Socket
+
     def __init__(self):
-        super().__init__("[Santa] ")
+        super().__init__(timestamp=True)
         ctx = zmq.Context()
 
-        self.sub = ctx.socket(zmq.SUB)
-        self.sub.connect("tcp://hr:5556")
-        self.sub.setsockopt_string(zmq.SUBSCRIBE, "")
-
-        self.req = ctx.socket(zmq.REQ)
-        self.req.connect("tcp://hr:5557")
+        self.con_hr = ctx.socket(zmq.REP)
+        self.con_hr.bind(f"tcp://*:{PORT_SANTA}")
 
     def run(self):
-        self.log("Santa sleeping")
+        # Usually all messages are a hit because no other messages are sent on this channel
         while True:
-            msg = self.sub.recv_json()
+            # GIL sends this thread to sleep until a message is received
+            msg = self.con_hr.recv_json()
+            cmd = msg["cmd"]
 
-            if msg["cmd"] == "WAKE_SANTA_ELVES":
-                self.log("Helping elves")
-                self.req.send_json({"type": "HELP_ELVES"})
-                self.req.recv_json()
+            if cmd == Santa.IN_HELP_ELVES:
+                self.print("Wakes up and makes himself a cup of coffee.")
+                self.con_hr.send_json({"type": Santa.OUT_OFFICE_OPENED})
 
-            elif msg["cmd"] == "WAKE_SANTA_REINDEER":
-                self.log("Preparing sleigh")
-                self.req.send_json({"type": "PREPARE_SLEIGH"})
-                self.req.recv_json()
+            elif cmd == Santa.IN_PREPARE_SLEIGH:
+                self.print("Wakes up excitedly and prepares the sleigh.")
+                self.con_hr.send_json({"type": Santa.OUT_HITCHES_REINDEERS})
 
-            elif msg["cmd"] == "CHRISTMAS":
-                self.log("Christmas is here!")
+                elves_needing_help = False
+                while True:
+                    if cmd == Santa.IN_SHIP_PRESENTS:
+                        self.print("Christmas is here!")
+                        self.con_hr.send_json({"type": Santa.OUT_BACK_TO_HOLIDAYS})
+                        break
+                    elif cmd == Santa.IN_HELP_ELVES:
+                        elves_needing_help = True
+                        self.con_hr.send_json({"type": Santa.OUT_WAIT_FOR_PREPARED_REINDEERS})
+                        break
+
+                if elves_needing_help:
+                    self.print("Wakes up and makes himself a cup of coffee.")
+                    self.con_hr.send_json({"type": Santa.OUT_OFFICE_OPENED})
