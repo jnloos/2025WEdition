@@ -54,9 +54,15 @@ class Elf(CanPrintZMQ):
                 self.print("Needs help.")
                 self.push_hr.send_json({"type": Elf.NEEDS_HELP, "id": self.elf_id})
 
+                # Flush old broadcast messages
+                while True:
+                    try:
+                        self.sub_hr.recv_json(flags=zmq.NOBLOCK)
+                    except zmq.Again:
+                        break
+
                 # Usually the first message is a hit because no other messages are sent on this broadcast channel
                 while True:
-                    # GIL sends this thread to sleep until a message is received
                     msg = self.sub_hr.recv_json()
                     cmd = msg["cmd"]
 

@@ -18,3 +18,6 @@ PORT_WORKER_EVENTS: int = 5502
 PORT_BCAST_REINDEERS: int = 5503
 PORT_BCAST_ELVES: int = 5504
 PORT_DEBUG_LOGGING: int = 5599
+
+# Console Logging flush delay
+FLUSH_DELAY: float = 1.0

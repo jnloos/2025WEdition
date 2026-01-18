@@ -61,11 +61,12 @@ class Reindeer(CanPrintZMQ):
                 msg = self.reindeer_bcast.recv_json()
                 cmd = msg["cmd"]
 
+                # Reindeer is getting hitched
                 if cmd == Reindeer.IN_HITCH:
                     self.print("Getting hitched to the sleigh.")
                     self.worker_concerns.send_json({"type": Reindeer.OUT_IS_PREPARED, "id": self.reindeer_id})
-                    break
 
+                # Reinder waits for Christmas Eve (NOT IN ORIGINAL PROBLEM)
                 elif cmd == Reindeer.IN_HOLIDAY_APPROVED:
                     self.print("Collects his wages and seeks out his dream holiday.")
                     break

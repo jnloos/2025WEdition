@@ -104,15 +104,17 @@ class HR(CanPrintZMQ):
             if self.returned_reindeers == self.reindeer_count:
                 self.con_santa.send_json({"cmd": Santa.IN_PREPARE_SLEIGH})
 
+        # The sledge and all reindeers are ready for Christmas (NOT IN ORIGINAL PROBLEM)
         elif concern == Reindeer.OUT_IS_PREPARED:
             self.prepared_reindeers += 1
             if self.prepared_reindeers == self.reindeer_count:
                 self.print("All departments are ready for Christmas.")
                 self.con_santa.send_json({"cmd": Santa.IN_SHIP_PRESENTS})
 
+        # Notify Santa of assistance requests
         elif concern == Elf.NEEDS_HELP:
             self.elves_needing_help += 1
-            self.print(f"Assistance request has been received by {employee_id}.")
+            self.print(f"Assistance request has been received by Elf {employee_id}.")
             if self.elves_needing_help == PROBLEM_TOLERANCE:
                 self.con_santa.send_json({"cmd": Santa.IN_HELP_ELVES})
 
@@ -121,20 +123,24 @@ class HR(CanPrintZMQ):
         msg = self.con_santa.recv_json()
         concern = msg["type"]
 
+        # Santa is ready to help the elves
         if concern == Santa.OUT_OFFICE_OPENED:
             self.print("Santa holds office hours for the elves.")
             self.bcast_elves.send_json({"cmd": Elf.HELP_GRANTED})
             self.elves_needing_help = 0
 
+        # Santa wants all reindeers to be hatched
         elif concern == Santa.OUT_HITCHES_REINDEERS:
             self.print("Christmas is coming soon. Arrange overtime work.")
             self.bcast_reindeers.send_json({"cmd": Reindeer.IN_HITCH})
 
+        # Christmas is done, reindeers can go back to holidays
         elif concern == Santa.OUT_BACK_TO_HOLIDAYS:
             self.print("Christmas is done. Send non-essential staff on holiday.")
             self.returned_reindeers = 0
             self.prepared_reindeers = 0
             self.bcast_reindeers.send_json({"cmd": Reindeer.IN_HOLIDAY_APPROVED})
 
+        # Elves must wait for Santa to be finished with Christmas
         elif concern == Santa.OUT_WAIT_FOR_PREPARED_REINDEERS:
-            self.print("Help request must wait because Santa waits for his reindeers.")
+            self.print("Help request must wait because Christmas is coming soon.")
