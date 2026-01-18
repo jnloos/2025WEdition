@@ -33,6 +33,9 @@ class Elf(Process, CanPrint):
         surnames = ["Smith", "McDonald", "Johnson", "Williams", "Jones", "Garcia", "Miller", "Davis", "Rodriguez"]
         self.print(f"Builds a {random.choice(toys)} for {random.choice(names)} {random.choice(surnames)}.")
 
+    def need_help(self) -> None:
+        self.print("Needs help from Santa Clause.")
+
     def get_help(self) -> None:
         self.print("Gets help from Santa Clause.")
 
@@ -52,6 +55,7 @@ class Elf(Process, CanPrint):
             self.hr.glob_mutex.release()
 
             # Getting help by Santa
+            self.need_help()
             self.hr.help_elves_sem.acquire()
             self.get_help()
 
