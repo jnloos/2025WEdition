@@ -1,0 +1,52 @@
+@startuml
+participant Elfen
+participant Rentiere
+participant HR
+participant Santa
+
+Santa --> Santa: Gehe Schlafen
+Rentiere --> Rentiere: Genieße Urlaub
+Elfen --> Elfen: Produziere Spielzeug
+
+group Elf braucht Hilfe
+    Elfen -> HR: Elf braucht Hilfe
+    Elfen --> Elfen: Warte auf Hilfe
+    alt Genug Elfen brauchen Hilfe
+        HR -> Santa: Elfen helfen
+    end
+    Santa --> Santa: Sprechstunde vorbereiten
+    Santa -> HR: Sprechstunde ist eröffnet
+    HR -> Elfen: Elfen zu Santa lassen
+    Santa --> Santa: Gehe Schlafen
+end
+
+Rentiere -> Rentiere: Rückkehr zum Nordpol
+
+group Weihnachten ist da
+    Rentiere -> HR: Rückkehr melden
+    Rentiere --> Rentiere: Warte auf Vorbereitung
+    alt Alle Rentiere zurück
+        HR -> Santa: Weihnachten vorbereiten
+    end
+    Santa --> Santa: Bereite Schlitten vor
+    Santa -> HR: Rentiere vorbereiten
+    Santa --> Santa: Warte auf Vorbereitung
+
+    HR -> Rentiere: Vorbereitung starten
+    Rentiere --> Rentiere: Werde vorbereitet
+    Rentiere -> HR: Vorbereitung abgeschlossen
+    Rentiere --> Rentiere: Warte auf Urlaubszusage
+
+    alt Alle Rentiere vorbereitet
+        HR -> Santa: Auslieferung beginnen
+    end
+
+    Santa --> Santa: Liefere Geschenke aus
+    Santa -> HR: Weihnachten ist vorbei
+    HR -> Rentiere: Schicke in Urlaub
+end
+
+Santa --> Santa: Gehe Schlafen
+Rentiere --> Rentiere: Genieße Urlaub
+Elfen --> Elfen: Produziere Spielzeug
+@enduml
