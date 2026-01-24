@@ -9,4 +9,4 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 docker compose build --no-cache
-docker compose up --scale elf=5 --scale reindeer=9
+docker compose up --scale elf=18 --scale reindeer=9
