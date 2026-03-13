@@ -1,6 +1,6 @@
 #!/bin/bash
 # disks-up.sh - Create virtual disk images
-# Creates 4 x 5GB raw image files under /2025WEdition/ to be used as virtual disks.
+# Creates 4 x 500MB raw image files under /2025WEdition/ to be used as virtual disks.
 # The images are filesystem-agnostic and can be used with ZFS, ext4, btrfs, or any other filesystem.
 
 set -e
@@ -13,12 +13,10 @@ fi
 
 IMAGE_DIR="/2025WEdition"
 IMAGE_COUNT=4
-IMAGE_SIZE="5G"
 
 echo "=== Virtual Disk Setup ==="
 echo "Image directory : $IMAGE_DIR"
 echo "Image count     : $IMAGE_COUNT"
-echo "Image size each : $IMAGE_SIZE"
 echo
 
 # --- Create image directory ---
@@ -32,9 +30,9 @@ echo "[2/2] Creating $IMAGE_COUNT image files (this may take a while) ..."
 for i in $(seq 1 $IMAGE_COUNT); do
     IMG="$IMAGE_DIR/disk${i}.img"
     echo "      Creating $IMG ..."
-    # Use dd to allocate a zero-filled file.
-    # bs=1M count=5120 gives exactly 5 GiB.
-    dd if=/dev/zero of="$IMG" bs=1M count=5120 status=progress
+    # Use truncate to create a sparse file instantly.
+    # The file appears as 500 MB to the OS but uses no physical space until written.
+    truncate -s 500M "$IMG"
     echo "      $IMG created."
 done
 echo

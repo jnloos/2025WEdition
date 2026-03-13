@@ -15,8 +15,35 @@ IMAGE_DIR="/2025WEdition"
 echo "=== Virtual Disk Teardown ==="
 echo
 
+# --- Detach ext4 loop devices backed by images in IMAGE_DIR ---
+echo "[1/4] Checking for ext4 loop devices backed by images in $IMAGE_DIR ..."
+
+if command -v losetup &>/dev/null; then
+    LOOPS=$(losetup -l --noheadings -O NAME,BACK-FILE 2>/dev/null \
+        | awk -v dir="$IMAGE_DIR" '$2 ~ dir { print $1 }' || true)
+
+    if [[ -z "$LOOPS" ]]; then
+        echo "      No loop devices backed by $IMAGE_DIR found."
+    else
+        for LOOP in $LOOPS; do
+            MOUNT=$(findmnt -n -o TARGET --source "$LOOP" 2>/dev/null || true)
+            if [[ -n "$MOUNT" ]]; then
+                echo "      Unmounting $MOUNT (loop device $LOOP) ..."
+                umount "$MOUNT" && echo "      Unmounted $MOUNT." \
+                    || echo "      Warning: Could not unmount $MOUNT."
+            fi
+            echo "      Detaching loop device $LOOP ..."
+            losetup -d "$LOOP" && echo "      Detached $LOOP." \
+                || echo "      Warning: Could not detach $LOOP."
+        done
+    fi
+else
+    echo "      losetup not found, skipping loop device cleanup."
+fi
+echo
+
 # --- Destroy ZFS pools that use images from IMAGE_DIR ---
-echo "[1/3] Checking for ZFS pools backed by images in $IMAGE_DIR ..."
+echo "[2/4] Checking for ZFS pools backed by images in $IMAGE_DIR ..."
 
 if ! command -v zpool &>/dev/null; then
     echo "      zpool not found, skipping pool destruction."
@@ -42,7 +69,7 @@ fi
 echo
 
 # --- Remove image files ---
-echo "[2/3] Removing image files from $IMAGE_DIR ..."
+echo "[3/4] Removing image files from $IMAGE_DIR ..."
 if [[ -d "$IMAGE_DIR" ]]; then
     # Remove all files inside the directory; continue on individual failures.
     for IMG in "$IMAGE_DIR"/*.img; do
@@ -58,7 +85,7 @@ fi
 echo
 
 # --- Remove image directory ---
-echo "[3/3] Removing directory $IMAGE_DIR ..."
+echo "[4/4] Removing directory $IMAGE_DIR ..."
 if [[ -d "$IMAGE_DIR" ]]; then
     rmdir "$IMAGE_DIR" 2>/dev/null \
         && echo "      Directory $IMAGE_DIR removed." \
