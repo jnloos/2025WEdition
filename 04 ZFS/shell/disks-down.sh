@@ -1,7 +1,7 @@
 #!/bin/bash
-# zfs-down.sh - Tear down ZFS learning environment
-# Destroys any ZFS pools backed by images in /zfs-images/, removes the image files,
-# and removes the /zfs-images/ directory.
+# disks-down.sh - Remove virtual disk images
+# Destroys any ZFS pools backed by images in /2025WEdition/, unmounts any ext4 loop devices,
+# removes the image files, and removes the /2025WEdition/ directory.
 # Intentionally does NOT use set -e so cleanup continues even if individual steps fail.
 
 # --- Root check ---
@@ -10,9 +10,9 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-IMAGE_DIR="/zfs-images"
+IMAGE_DIR="/2025WEdition"
 
-echo "=== ZFS Learning Environment Teardown ==="
+echo "=== Virtual Disk Teardown ==="
 echo
 
 # --- Destroy ZFS pools that use images from IMAGE_DIR ---
@@ -68,4 +68,4 @@ else
 fi
 echo
 
-echo "=== Teardown complete ==="
+echo "=== Disk teardown complete ==="

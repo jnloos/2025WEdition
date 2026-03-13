@@ -11,6 +11,8 @@ from .ZFSPool import ZFSPool
 from .ZFSDataset import ZFSDataset
 from .ZFSSnapshot import ZFSSnapshot
 from .BackupManager import BackupManager
+from .Ext4Disk import Ext4Disk
+from .Ext4Mount import Ext4Mount
 
 __all__ = [
     "ShellCommander",
@@ -19,4 +21,6 @@ __all__ = [
     "ZFSDataset",
     "ZFSSnapshot",
     "BackupManager",
+    "Ext4Disk",
+    "Ext4Mount",
 ]

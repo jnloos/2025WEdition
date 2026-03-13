@@ -31,7 +31,7 @@ import time
 
 from lib import ZFSDisk, ZFSPool
 
-IMAGE_DIR = "/zfs-images"
+IMAGE_DIR = "/2025WEdition"
 DEST_DIR = "/tmp/zfs-inconsist-demo"
 POOL_NAME = "inconsistpool"
 RECV_POOL_NAME = "recvpool"

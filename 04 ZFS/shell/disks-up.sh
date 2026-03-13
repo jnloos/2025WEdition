@@ -1,6 +1,7 @@
 #!/bin/bash
-# zfs-up.sh - Set up ZFS learning environment
-# Creates 4 x 5GB image files under /zfs-images/ to be used as virtual disks for ZFS pools.
+# disks-up.sh - Create virtual disk images
+# Creates 4 x 5GB raw image files under /2025WEdition/ to be used as virtual disks.
+# The images are filesystem-agnostic and can be used with ZFS, ext4, btrfs, or any other filesystem.
 
 set -e
 
@@ -10,11 +11,11 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-IMAGE_DIR="/zfs-images"
+IMAGE_DIR="/2025WEdition"
 IMAGE_COUNT=4
 IMAGE_SIZE="5G"
 
-echo "=== ZFS Learning Environment Setup ==="
+echo "=== Virtual Disk Setup ==="
 echo "Image directory : $IMAGE_DIR"
 echo "Image count     : $IMAGE_COUNT"
 echo "Image size each : $IMAGE_SIZE"
@@ -43,5 +44,7 @@ echo "=== Verification ==="
 echo "Files in $IMAGE_DIR:"
 ls -lh "$IMAGE_DIR"
 echo
-echo "Setup complete. You can now create ZFS pools using the images in $IMAGE_DIR."
-echo "Example: zpool create mypool $IMAGE_DIR/disk1.img $IMAGE_DIR/disk2.img"
+echo "Setup complete. The images in $IMAGE_DIR can now be used as virtual disks."
+echo "Examples:"
+echo "  ZFS:  zpool create mypool $IMAGE_DIR/disk1.img $IMAGE_DIR/disk2.img"
+echo "  ext4: mkfs.ext4 $IMAGE_DIR/disk3.img"

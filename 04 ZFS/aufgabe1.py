@@ -7,7 +7,7 @@ from datetime import datetime
 
 from lib import BackupManager, ZFSDisk, ZFSPool
 
-IMAGE_DIR = "/zfs-images"
+IMAGE_DIR = "/2025WEdition"
 BACKUP_CONFIG = os.path.join(os.path.dirname(__file__), "config", "backup.yaml")
 
 logging.basicConfig(

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from lib import ZFSDisk, ZFSPool
 
-IMAGE_DIR = "/zfs-images"
+IMAGE_DIR = "/2025WEdition"
 POOL_NAME = "raidpool"
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
