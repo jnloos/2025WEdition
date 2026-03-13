@@ -3,6 +3,7 @@ import subprocess
 from datetime import datetime
 
 from .ShellCommander import ShellCommander
+from .ZFSDataset import ZFSDataset
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +66,29 @@ class ZFSSnapshot(ShellCommander):
                 logger.debug("stderr: %s", result.stderr.decode().rstrip())
 
         logger.info("Snapshot '%s' sent to '%s'.", self.__full_name, destination)
+
+    def pipe(self, target: ZFSDataset) -> None:
+        """Stream this snapshot directly into target via zfs send | zfs receive."""
+        from .ZFSDataset import ZFSDataset
+
+        logger.info("Piping snapshot '%s' into dataset '%s' ...", self.__full_name, target.full_name)
+        send_proc = subprocess.Popen(
+            ["zfs", "send", self.__full_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        recv_proc = subprocess.Popen(
+            ["zfs", "receive", "-F", target.full_name],
+            stdin=send_proc.stdout,
+            stderr=subprocess.PIPE,
+        )
+        send_proc.stdout.close()
+        _, recv_stderr = recv_proc.communicate()
+        send_proc.wait()
+
+        if recv_proc.returncode != 0:
+            raise subprocess.CalledProcessError(recv_proc.returncode, "zfs receive", stderr=recv_stderr)
+        if send_proc.returncode != 0:
+            raise subprocess.CalledProcessError(send_proc.returncode, "zfs send")
+
+        logger.info("Pipe complete: '%s' → '%s'.", self.__full_name, target.full_name)

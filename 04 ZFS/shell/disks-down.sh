@@ -10,7 +10,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-IMAGE_DIR="/2025WEdition"
+IMAGE_DIR="/2025WEdition/disks"
 
 echo "=== Virtual Disk Teardown ==="
 echo
@@ -84,7 +84,7 @@ else
 fi
 echo
 
-# --- Remove image directory ---
+# --- Remove image directory (only /2025WEdition/disks, not the parent) ---
 echo "[4/4] Removing directory $IMAGE_DIR ..."
 if [[ -d "$IMAGE_DIR" ]]; then
     rmdir "$IMAGE_DIR" 2>/dev/null \

@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 class ZFSPool(ShellCommander):
     """A ZFS storage pool backed by one or more ZFSDisk instances."""
 
-    def __init__(self, name: str, disks: list[ZFSDisk], mode: str | None = None) -> None:
+    def __init__(self, name: str, disks: list[ZFSDisk], mode: str | None = None, mountpoint: str | None = None) -> None:
         self.__name = name
         self.__disks = disks
         self.__mode = mode
+        self.__mountpoint = mountpoint
 
     @property
     def name(self) -> str:
@@ -35,7 +36,10 @@ class ZFSPool(ShellCommander):
 
     def create(self) -> None:
         """Create the pool with the configured disks and topology via ``zpool create``"""
-        cmd = ["zpool", "create", self.__name]
+        cmd = ["zpool", "create"]
+        if self.__mountpoint:
+            cmd += ["-m", self.__mountpoint]
+        cmd.append(self.__name)
         if self.__mode:
             cmd.append(self.__mode)
         cmd.extend(disk.path for disk in self.__disks)

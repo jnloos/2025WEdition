@@ -11,7 +11,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-IMAGE_DIR="/2025WEdition"
+IMAGE_DIR="/2025WEdition/disks"
 IMAGE_COUNT=4
 
 echo "=== Virtual Disk Setup ==="
@@ -21,7 +21,7 @@ echo
 
 # --- Create image directory ---
 echo "[1/2] Creating image directory $IMAGE_DIR ..."
-mkdir -p "$IMAGE_DIR"
+mkdir -p "$IMAGE_DIR"  # also creates /2025WEdition/ as parent
 echo "      Done."
 echo
 

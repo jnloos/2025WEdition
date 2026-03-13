@@ -8,7 +8,7 @@ from datetime import datetime
 
 from lib import ZFSDisk, ZFSPool
 
-IMAGE_DIR = "/2025WEdition"
+IMAGE_DIR = "/2025WEdition/disks"
 POOL_NAME = "raidpool"
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -21,21 +21,20 @@ logger = logging.getLogger(__name__)
 
 def worker(filepath: str, stop_event: threading.Event, error_event: threading.Event) -> int:
     """Continuously reads and writes the filepath until stop_event is set."""
-
     iteration = 0
     while not stop_event.is_set():
         try:
-            # (a) Read current content.
+            # 1. Read current content.
             with open(filepath, "r") as f:
                 content = f.read()
 
-            # (b) Append a new iteration line.
+            # 2. Append a new iteration line.
             timestamp = datetime.now().strftime(TIMESTAMP_FORMAT)
             with open(filepath, "a") as f:
                 f.write(f"iteration={iteration}  timestamp={timestamp}\n")
                 f.flush()
 
-            # (c) Verify the file is readable and non-empty.
+            # 3. Verify the file is readable and non-empty.
             with open(filepath, "r") as f:
                 data = f.read()
             if not data:
@@ -44,7 +43,7 @@ def worker(filepath: str, stop_event: threading.Event, error_event: threading.Ev
             time.sleep(0.05)  # ~20 iterations/s, prevents unbounded file growth
             iteration += 1
 
-            # (d) Log every 5 iterations.
+            # 4. Log every 5 iterations.
             if iteration % 5 == 0:
                 logger.info("Worker: iteration %d OK", iteration)
 
@@ -69,9 +68,7 @@ def main() -> None:
     pool = ZFSPool(POOL_NAME, disks, mode="raidz")
 
     try:
-        # ----------------------------------------------------------------
         # 1. Create pool and dataset
-        # ----------------------------------------------------------------
         if pool.exists():
             pool.destroy()
         pool.create()
@@ -79,17 +76,13 @@ def main() -> None:
         ds = pool.get_dataset("data")
         ds.create()
 
-        # ----------------------------------------------------------------
-        # 2. Write initial file
-        # ----------------------------------------------------------------
+        # 2. Write an initial file
         workload_path = os.path.join(ds.mountpoint, "workload.txt")
         with open(workload_path, "w") as f:
             f.write(f"initial  timestamp={datetime.now().strftime(TIMESTAMP_FORMAT)}\n")
         logger.info("Initial workload.txt written to %s", workload_path)
 
-        # ----------------------------------------------------------------
-        # 3. Start worker thread
-        # ----------------------------------------------------------------
+        # 3. Start a worker thread
         stop_event = threading.Event()
         error_event = threading.Event()
         iteration_count = [0]  # mutable container so the thread result is accessible
@@ -100,9 +93,7 @@ def main() -> None:
         worker_thread = threading.Thread(target=worker_wrapper, daemon=True)
         worker_thread.start()
 
-        # ----------------------------------------------------------------
-        # 4. Let worker run for 3 seconds to confirm it's working
-        # ----------------------------------------------------------------
+        # 4. Let a worker run for 3 seconds to confirm it's working
         time.sleep(3)
         if error_event.is_set():
             logger.error("Worker reported errors before disk failure — aborting.")
@@ -111,9 +102,7 @@ def main() -> None:
             sys.exit(1)
         logger.info("Worker running normally after 3 s. Proceeding to disk failure.")
 
-        # ----------------------------------------------------------------
         # 5. Simulate disk failure, let worker continue for 5 more seconds
-        # ----------------------------------------------------------------
         logger.info("=" * 60)
         logger.info("  Simulating failure of disk1 ...")
         logger.info("=" * 60)
@@ -127,9 +116,7 @@ def main() -> None:
         else:
             logger.info("Worker had NO I/O errors during the 5 s failure window — RAIDZ held.")
 
-        # ----------------------------------------------------------------
         # 6. Replace the failed disk, let worker run for 3 more seconds
-        # ----------------------------------------------------------------
         logger.info("=" * 60)
         logger.info("  Replacing disk1 with disk4 ...")
         logger.info("=" * 60)
@@ -138,15 +125,11 @@ def main() -> None:
 
         time.sleep(3)
 
-        # ----------------------------------------------------------------
-        # Stop worker
-        # ----------------------------------------------------------------
+        # 7. Stop worker
         stop_event.set()
         worker_thread.join()
 
-        # ----------------------------------------------------------------
-        # 7. Summary
-        # ----------------------------------------------------------------
+        # 8. Summary
         final_status = pool.status()
         print()
         print("=" * 60)
