@@ -48,6 +48,7 @@ Entfernt alle ZFS Pools, Loop-Devices, Image-Dateien und das `/2025WEdition/`-Ve
 ├── config/
 │   └── backup.yaml      # Backup-Konfiguration (Dataset, Ziel, Retention)
 ├── lib/
+│   ├── __init__.py
 │   ├── ShellCommander.py
 │   ├── ZFSDisk.py
 │   ├── ZFSPool.py
@@ -56,10 +57,15 @@ Entfernt alle ZFS Pools, Loop-Devices, Image-Dateien und das `/2025WEdition/`-Ve
 │   ├── BackupManager.py
 │   ├── Ext4Disk.py
 │   └── Ext4Mount.py
+├── report/
+│   ├── references.bib
+│   ├── report.tex       # Report LaTeX-Quelldatei
+│   └── report.pdf       # Report PDF-Datei
 ├── shell/
 │   ├── disks-up.sh      # Virtuelle Disks erstellen
 │   └── disks-down.sh    # Virtuelle Disks entfernen
 └── tests/
+    ├── __init__.py
     ├── BenchmarkTest.py
     ├── SequentialWriteTest.py
     ├── SequentialReadTest.py
