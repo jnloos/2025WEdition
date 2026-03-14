@@ -21,8 +21,7 @@ class RandomReadTest(BenchmarkTest):
                 f.flush()
                 os.fsync(f.fileno())
 
-            with open("/proc/sys/vm/drop_caches", "w") as f:
-                f.write("3")
+            BenchmarkTest.drop_all_caches()
 
             start = time.perf_counter()
             with open(path, "rb") as f:

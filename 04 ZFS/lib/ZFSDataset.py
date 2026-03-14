@@ -5,7 +5,7 @@ from .ShellCommander import ShellCommander
 
 logger = logging.getLogger(__name__)
 
-# Manages a
+# Manages a ZFS dataset (filesystem) identified by its full hierarchical name.
 class ZFSDataset(ShellCommander):
     """A ZFS dataset (filesystem) identified by its full hierarchical name."""
 

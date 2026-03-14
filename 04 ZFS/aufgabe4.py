@@ -12,7 +12,8 @@ from tests.RandomReadTest import RandomReadTest
 from tests.SmallFilesTest import SmallFilesTest
 
 IMAGE_DIR = "/2025WEdition/disks"
-EXT4_MOUNT = "/2025WEdition/aufgabe4"
+EXT4_MOUNT = "/2025WEdition/aufgabe4/ext4"
+ZFS_MOUNT = "/2025WEdition/aufgabe4/zfs"
 EXT4_IMAGE = f"{IMAGE_DIR}/disk2.img"
 
 TESTS: list[BenchmarkTest] = [
@@ -64,7 +65,7 @@ def main() -> None:
         sys.exit(1)
 
     disk1 = ZFSDisk(f"{IMAGE_DIR}/disk1.img")
-    pool = ZFSPool("benchpool", [disk1])
+    pool = ZFSPool("benchpool", [disk1], mountpoint=ZFS_MOUNT)
     ext4_mount: Ext4Mount | None = None
     results: list[BenchmarkResult] = []
 
@@ -73,9 +74,7 @@ def main() -> None:
         if pool.exists():
             pool.destroy()
         pool.create()
-        ds = pool.get_dataset("data")
-        ds.create()
-        zfs_mountpoint = ds.mountpoint
+        zfs_mountpoint = ZFS_MOUNT
         logger.info("ZFS mountpoint: %s", zfs_mountpoint)
 
         # 2. ext4 setup

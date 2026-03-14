@@ -1,0 +1,163 @@
+\documentclass[a4paper, 12pt]{article}
+
+% Pakete
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+
+\geometry{a4paper, margin=1in, headsep=35pt}
+
+% Referenzen
+\usepackage{csquotes}
+\usepackage[style=verbose-ibid,backend=bibtex]{biblatex}
+
+% Listings (Pseudocode) -- minimales, sauberes Styling passend zum Dokumentstil
+\lstdefinestyle{pseudo}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  framerule=0.3pt,
+  rulecolor=\color{gray!40},
+  xleftmargin=10pt,
+  xrightmargin=6pt,
+  aboveskip=6pt,
+  belowskip=4pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+  commentstyle=\itshape\color{gray!70!black},
+  keywordstyle=\bfseries,
+}
+\lstset{style=pseudo}
+
+% Kopfzeile
+\pagestyle{fancy}
+\fancyhead{}
+\fancyhead[L]{\veranstaltung \\ Übungsblatt \blatt}
+\fancyhead[C]{\textbf{Jan-Niclas Loosen}\\ \textbf{Mat.Nr. UNKENNTLICH}}
+\fancyhead[R]{Universität Trier\\ \today}
+
+% Variablen
+\newcommand{\blatt}{3}
+\newcommand{\veranstaltung}{Betriebssysteme}
+\bibliography{references.bib}
+
+\begin{document}
+
+\section{Einleitung}
+
+Das Zettabyte File System (ZFS) wurde ursprünglich von Sun Microsystems entwickelt und 2005 als Open-Source-Software veröffentlicht.\autocite{sliwa2022zfs} Im Unterschied zu klassischen Dateisystemen vereint die Software die Aufgaben eines Logical Volume Managers und eines Dateisystems in einer einzigen Schicht. Dadurch entfällt die traditionelle Trennung zwischen Partitionsverwaltung, RAID-Controller und Dateisystem.
+
+Das zentrale Designprinzip von ZFS ist \textbf{Copy-on-Write} (CoW).\autocite{wikipedia2025zfs} Anstatt Daten an ihrem bestehenden Speicherort zu verändern, schreibt ZFS modifizierte Blöcke stets an neue Positionen und aktualisiert die Metadaten erst, wenn der Schreibvorgang vollständig abgeschlossen ist. Damit ist jeder Schreibvorgang von Natur aus atomar: Ein Systemabsturz mitten in einer Operation hinterlässt keinen inkonsistenten Zustand.
+
+Eng mit CoW verbunden ist das Konzept der \textbf{Snapshots}. Da ZFS Blöcke nie überschreibt, kann der Zustand eines Datasets zu einem beliebigen Zeitpunkt eingefroren werden, indem ein Verweis auf den aktuellen Wurzelblock gespeichert wird. Dieser Snapshot belegt zunächst keinen zusätzlichen Speicher. Erst wenn Daten nach der Erstellung verändert werden, wächst sein Platzbedarf um die Differenz zwischen altem und neuem Zustand.
+
+Die Speicherverwaltung in ZFS basiert auf \textbf{Pools} und \textbf{Datasets}. Ein Pool fasst eine oder mehrere physische Disks zu einem gemeinsamen Speicherbereich zusammen und kann dabei verschiedene Topologien abbilden: einfaches Striping ohne Redundanz, gespiegelte Konfigurationen (Mirror) sowie RAIDZ. Innerhalb eines Pools werden Datasets angelegt, die sich Speicher dynamisch aus dem Pool teilen und jeweils eigene Eigenschaften wie Kompression, Deduplizierung oder Quotas erhalten können.
+
+Zur Verbesserung der Leseperformanz verwendet ZFS den \textbf{Adaptive Replacement Cache} (ARC). Dabei handelt es sich um einen Hauptspeicher-Cache, der unabhängig vom Linux Page Cache betrieben wird. Der ARC unterscheidet zwischen häufig genutzten (\emph{frequently used}) und zuletzt genutzten (\emph{recently used}) Blöcken und passt seine Ersetzungsstrategie dynamisch an das Zugriffsverhalten an.
+
+Die vorliegende Portfolioabgabe untersucht ZFS anhand von vier praktischen Aufgaben.
+
+\section{Umgebung und Ansatz}
+
+Die Aufgaben wurden auf einer Ubuntu-24.04-LTS VM (KVM-Hypervisor) mit ZFS~2.2.2 implementiert. Als Speichermedien dienen vier 500\,MB große Sparse-Image-Dateien.
+
+Die Implementierungssprache ist Python~3.12. Um ZFS-Kommandos konsistent zu kapseln, wurde eine objektorientierte Klassenhierarchie mit \texttt{ShellCommander} als gemeinsamer Basisklasse entwickelt. Jede abgeleitete Klasse kapselt eine logische ZFS-Einheit und exponiert die wichtigsten ZFS-Methoden. Die Hierarchie umfasst die Klassen \texttt{ZFSDisk}, \texttt{ZFSPool}, \texttt{ZFSDataset}, \texttt{ZFSSnapshot}, \texttt{BackupManager}, \texttt{Ext4Disk} sowie \texttt{Ext4Mount}.
+
+\section{Aufgaben}
+
+\subsection{Datei-Inkonsistenzen trotz ZFS-Snapshots}
+
+Für das Experiment werden zwei ZFS-Pools angelegt: \texttt{inconsistpool} auf \texttt{disk1} als Quelle und \texttt{recvpool} auf \texttt{disk2} als Empfänger. Innerhalb von \texttt{inconsistpool} wird über \texttt{pool.get\_dataset()} ein Dataset erzeugt, der Ablageort für \texttt{counter.txt} dient.
+
+Ein separater Writer-Thread schreibt in einer Endlosschleife nicht-atomar in diese Datei. Jeder Datensatz entsteht in zwei getrennten Schritten: Zunächst wird nur der Zähler \texttt{count=N} in die Datei geschrieben und sofort per \texttt{flush()} auf die Disk übertragen. Anschließend wartet der Thread 10\,ms, bevor er eine Prüfsumme \texttt{checksum=sha256(N)} als Fortsetzung derselben Zeile ergänzt. In diesem 10\,ms-Fenster ist der Record auf der Disk vorhanden, aber semantisch unvollständig. Genau hier kann ein Snapshot eintreten.
+
+Nach 2~Sekunden wird über \texttt{ds.snapshot()} der Snapshot \texttt{snap-inconsist} erstellt und per \texttt{snap.pipe()} direkt in das Dataset \texttt{recvpool/inspect} übertragen. Intern startet \texttt{pipe()} zwei verkettete Subprozesse: \texttt{zfs send} schreibt den Snapshot-Stream, den \texttt{zfs receive} direkt liest und in den Empfänger-Pool schreibt. Anschließend wird die letzte Zeile der \texttt{counter.txt} im empfangenen Dataset mit dem aktuellen Stand der Originaldatei verglichen, um festzustellen, ob der Snapshot das Inkonsistenzfenster getroffen hat.
+
+Das Experiment ist nicht deterministisch, da das Timing des Snapshots variiert. Im inkonsistenten Fall ergibt sich eine Ausgabe ähnlich zu dieser:
+
+\begin{lstlisting}
+============================================================
+INCONSISTENT: last line was cut mid-write
+  Inconsistent last line: 'count=192'
+  Clean last line:        'count=954  checksum=b47ae...3f\n'
+============================================================
+\end{lstlisting}
+
+ZFS garantiert \textbf{Crash-Konsistenz}: Entweder ist ein Block vollständig auf Disk, oder gar nicht. ZFS garantiert jedoch \textbf{keine Applikationskonsistenz}. Der Snapshot fixiert den Dateisystemzustand zu einem exakten Zeitpunkt, unabhängig davon, ob die Applikation einen logischen Datensatz vollständig geschrieben hat.
+
+Die Ausgabe des Experiments belegt dies konkret. Der Snapshot traf in das 10\,ms-Fenster zwischen den beiden Phasen und fror dabei nur \texttt{count=192} ein und die Prüfsumme war zu diesem Zeitpunkt noch nicht auf die Disk geschrieben worden. Im Original lief der Writer derweil weiter und hatte zum Zeitpunkt der Auswertung bereits Record~954 vollständig abgeschlossen. Der Unterschied von 762 Records entspricht den ca.~8~Sekunden, die zwischen Snapshot-Zeitpunkt und dem Ende des Writer-Threads lagen.
+
+Um applikationskonsistente Snapshots zu gewährleisten, existieren mehrere Ansätze. Beim atomaren Schreiben wird die Datei zunächst in eine temporäre Datei geschrieben und anschließend via \texttt{rename()} ausgetauscht, sodass stets die alte oder die neue Version sichtbar ist. Alternativ kann die Applikation per \texttt{SIGSTOP} pausiert, der Snapshot aufgenommen und anschließend per \texttt{SIGCONT} fortgesetzt werden. Datenbanken wie PostgreSQL oder MySQL bieten darüber hinaus eigene Mechanismen wie \texttt{CHECKPOINT} oder \texttt{FLUSH TABLES WITH READ LOCK}, um vor dem Snapshot einen konsistenten Zustand zu erzwingen.
+
+\subsection{Datensicherheit mit RAIDZ}
+
+Ein RAIDZ-Pool \texttt{raidpool} wird über drei Disks (\texttt{disk1}, \texttt{disk2}, \texttt{disk3}) angelegt, sodass ZFS Daten und Paritätsinformation gemeinsam über alle drei Disks striped. \texttt{disk4} steht als Ersatz-Disk bereit. Innerhalb des Pools wird das Dataset \texttt{raidpool/data} erzeugt, in dem die Datei \texttt{workload.txt} abgelegt wird. Ein Worker-Thread liest und beschreibt diese Datei in einer Endlosschleife mit ca.~20~Iterationen pro Sekunde. Tritt dabei ein I/O-Fehler auf, wird ein Event gesetzt und der Thread bricht ab. Andernfalls läuft er bis zum expliziten Stop weiter.
+
+Nach 3~Sekunden normalem Betrieb wird \texttt{disk1} über \texttt{disk.fail()} ein Ausfall simuliert, indem die zugrundeliegende Image-Datei auf 0~Byte truncated wird. ZFS erkennt den Datenverlust auf Blockebene und versetzt den Pool in den DEGRADED-Zustand. Der Worker läuft in dieser Phase unverändert weiter. Nach weiteren 5~Sekunden wird über \texttt{disk.replace()} der Befehl \texttt{zpool replace} ausgelöst, der \texttt{disk4} als Ersatz einbindet und das Resilvering startet: ZFS rekonstruiert die fehlenden Blöcke aus den verbleibenden Disks mithilfe der Paritätsinformation und schreibt sie auf disk4. Nach weiteren 3~Sekunden wird der Worker gestoppt und der finale Poolzustand ausgewertet. Der gesamte Versuch dauert damit ca. 11~Sekunden, während derer der Pool durchgehend les- und schreibbar bleibt und keine Fehler geworfen werden.
+
+Der Worker hat 219 Iterationen ohne einen einzigen I/O-Fehler abgeschlossen. Während der gesamten DEGRADED-Phase blieb das Dataset uneingeschränkt les- und schreibbar. Die finale Zusammenfassung des Programms bestätigt dies:
+
+\begin{lstlisting}
+============================================================
+  SUMMARY
+============================================================
+  Total iterations completed : 219
+  I/O errors during failure  : NO  -- RAIDZ kept data accessible
+  Final pool status:
+  pool: raidpool
+ state: ONLINE
+  scan: resilvered 180K in 00:00:00 with 0 errors
+        on Sat Mar 14 17:20:03 2026
+config:
+    NAME                               STATE  READ WRITE CKSUM
+    raidpool                           ONLINE    0     0     0
+      raidz1-0                         ONLINE    0     0     0
+        /2025WEdition/disks/disk4.img  ONLINE    0     0     0
+        /2025WEdition/disks/disk2.img  ONLINE    0     0     0
+        /2025WEdition/disks/disk3.img  ONLINE    0     0     0
+errors: No known data errors
+============================================================
+\end{lstlisting}
+
+\subsection{Zugriffsperformanz: ZFS vs.\ ext4}
+
+Für den Vergleich werden zwei unabhängige Setups erstellt. Für ZFS wird über \texttt{ZFSPool} ein Pool \texttt{benchpool} auf \texttt{disk1} angelegt und darin über \texttt{pool.get\_dataset()} ein Dataset erzeugt. Für ext4 wird \texttt{disk2} über \texttt{Ext4Disk.format()} mit \texttt{mkfs.ext4} formatiert. Anschließend bindet \texttt{Ext4Disk.attach()} die Image-Datei als Loop-Device ein und gibt ein \texttt{Ext4Mount}-Objekt zurück, über das \texttt{mount()} das Dateisystem einhängt.
+
+Alle fünf Benchmark-Tests erben von einer gemeinsamen Basisklasse und implementieren jeweils eine \texttt{run()}-Methode, die einen Mountpunkt und ein Dateisystemkürzel entgegennimmt und ein Ergebnis mit Throughput und Einheit zurückgibt. Sequential Write und Sequential Read arbeiten mit 256\,MB großen Dateien und 1\,MB-Blöcken. Die Random-Tests führen jeweils 500 Zugriffe auf 4\,KB-Blöcke durch, wobei Random Write nach jedem Zugriff ein \texttt{fsync()} ausführt. Der Small-Files-Test legt 500 Dateien à 4\,KB an und synchronisiert jede einzeln. Um den ZFS ARC vor den Lesetests zu invalidieren, wird \texttt{zfs\_arc\_max} vor jedem Lesetest temporär auf ein Minimum gesetzt und danach wieder zurückgesetzt. Die Tests laufen nacheinander auf beiden Mountpunkten ab.
+
+\begin{lstlisting}
+============================================================
+  Benchmark Results: ZFS vs ext4
+============================================================
+Test                               ZFS          ext4
+------------------------------------------------------------
+Sequential Write            228.0 MB/s    652.3 MB/s
+Sequential Read            5433.4 MB/s   2782.0 MB/s
+Random Write (4K)             1.9 MB/s      0.6 MB/s
+Random Read  (4K)            82.2 MB/s     20.7 MB/s
+Small Files              531.5 files/s 157.9 files/s
+============================================================
+\end{lstlisting}
+
+Die gemessenen Werte sind auf Basis der eingesetzten Hardware plausibel und können als valide eingestuft werden. Als Speichermedium kommt eine SK Hynix PCIe-4.0-NVMe zum Einsatz, die laut Herstellerangaben sequentielle Leseraten von ca. 5.000–6.500 MB/s und sequentielle Schreibraten von ca. 4.000–5.000 MB/s erreicht.
+
+Die deutlich niedrigeren sequentiellen Schreibraten von 228 MB/s (ZFS) bzw. 652 MB/s (ext4) im Vergleich zu den theoretischen NVMe-Werten erklären sich durch mehrere zusammenwirkende Faktoren. Erstens erzwingt ein abschließendes \texttt{os.fsync()}, dass alle Daten physisch auf das Speichermedium geschrieben sein müssen, bevor die Messung endet. Zweitens verläuft der I/O-Pfad in der VM-Umgebung mehrfach verschachtelt: Schreibzugriffe durchlaufen ZFS bzw. ext4 innerhalb der VM, das darunterliegende Loop-Device, die Sparse-Image-Datei und schließlich den KVM-Hypervisor mit seinem eigenen Host-Dateisystem, bevor die NVMe erreicht wird.
+
+Für den Vergleich der relativen Stärken beider Dateisysteme sind die Messwerte dennoch aussagekräftig: ZFS zeigt bei Random-Zugriffen und kleinen Dateien durch den ARC einen deutlichen Vorteil gegenüber ext4, während ext4 beim sequentiellen Schreiben durch das einfachere In-Place-Write-Modell und geringeren Verwaltungsaufwand überlegen ist.
+
+\end{document}
